@@ -1,0 +1,121 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<project name="phing-drupal" default="build" phingVersion="2.4.11">
+
+<!-- ## Main targets -->
+
+<!-- ### Build project
+
+Do a complete build of the project by verifying code consistency and and
+performing static analysis of the code.
+
+This is the default build target.
+
+Do not run `docs` for now. Generating documentation eats up memory and build
+time and is largely obsolete when using GitHub. -->
+  <target name="build" depends="init,
+                                clean,
+                                verify,
+                                analyze" />
+
+<!-- ### Verify code consistency
+
+Make sure that our code is clean and functional. -->
+  <target name="verify" depends="init,
+                                 clean,
+                                 lint-php-custom,
+                                 lint-js-custom,
+                                 lint-css-custom,
+                                 check-php-debug,
+                                 check-js-debug,
+                                 simpletest"/>
+
+<!-- ### Analyze code
+
+Perform static analysis of the code to generate statistics, identify potential
+problems and opportunities for refactorings and make sure that the code
+complies with coding standards. -->
+  <target name="analyze" depends="init,
+                                  clean,
+                                  phploc,
+                                  phpmd,
+                                  phpcpd">
+    <!-- Moved inside target to support properties in target name -->
+    <phingcall target="coder-review-d${drupal.version}">
+      <!-- Run the target as if it was executed from the Drupal root
+           directory. -->
+      <property name="project.basedir" value="${project.drupal.dir}"/>
+      <!-- We already have a clean environment so avoid further cleaning. -->
+      <property name="project.cleaned" value="1"/>
+      <!-- Make will run again as a part of the `init` target. We already have
+           a working site so skip that. -->
+      <property name="project.make.skip" value="1"/>
+    </phingcall>
+  </target>
+
+<!-- ### Generate documentation
+
+Generate HTML documentation and code browser for the project. -->
+  <target name="docs" depends="init,
+                               clean,
+                               phpdoc,
+                               phpcb" />
+
+<!-- ## Individual targets
+These targets can be executed individually or grouped unless explicitly
+stated as a part of the task.
+
+**As a rule targets without descriptions should not be executed directly.** -->
+
+<!-- ### Lint PHP -->
+  <import file="${phing.dir}/components/build_lint_php.xml" />
+
+<!-- ### Javascript linting -->
+  <import file="${phing.dir}/components/build_lint_js.xml" />
+
+<!-- ### CSS linting -->
+  <import file="${phing.dir}/components/build_lint_css.xml" />
+
+<!-- ### Debug code detection -->
+  <import file="${phing.dir}/components/build_debug_stmt_check.xml" />
+
+<!-- ### Generate code statistics -->
+  <import file="${phing.dir}/components/build_php_loc.xml" />
+
+<!-- ### Drupal Coder review -->
+  <import file="${phing.dir}/components/build_drupal_coder.xml" />
+
+<!-- ### Review code using PHP_CodeSniffer -->
+  <import file="${phing.dir}/components/build_drupal_phpcodesniffer.xml" />
+
+<!-- ### SimpleTests -->
+  <import file="${phing.dir}/components/build_drupal_simpletests.xml" />
+
+<!-- ### Generate documentation -->
+<!-- #### Generate API Documentation -->
+  <import file="${phing.dir}/components/build_php_documentor.xml" />
+
+<!-- ## Helper targets
+
+These targets are used throughout the project and should normally not be
+executed directly.-->
+
+<!-- ### Initialization -->
+  <import file="${phing.dir}/components/build_initialize.xml" />
+
+<!-- ### Drush Make -->
+  <import file="${phing.dir}/components/build_drush_make.xml" />
+
+<!-- ### Setup file sets -->
+  <import file="${phing.dir}/components/build_setup_filesets.xml" />
+
+<!-- ### Clean working environment  -->
+  <import file="${phing.dir}/components/build_cleanup_environment.xml" />
+
+<!-- ### Install a Drupal site -->
+  <import file="${phing.dir}/components/build_install_drupal_site.xml" />
+
+<!-- ### Setup Rhino & Phrocco -->
+  <import file="${phing.dir}/components/build_setup_rhino)phrocco.xml" />
+
+</project>

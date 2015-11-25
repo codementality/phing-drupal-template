@@ -1,0 +1,117 @@
+<!-- ### Install a Drupal site
+
+This initializes a Drupal site using a installation profile.
+
+Configuration of which installation profile and database to use in done in
+`build.properties`. -->
+  <target name="site-install"
+          depends="init, setup-phing-drush"
+          unless="project.installed">
+    <drush command="site-install" assume="yes">
+      <option name="db-url">${drupal.db.url}</option>
+      <param>${drupal.profile}</param>
+    </drush>
+    <!-- Fix permissions for the default site directory and settings. The
+         owner must be able to delete the directories during subsequent
+         builds. -->
+    <chmod file="${project.drupal.dir}/sites/default/"
+           mode="0755" failonerror="true"/>
+    <chmod file="${project.drupal.dir}/sites/default/default.settings.php"
+           mode="0755" failonerror="true"/>
+
+    <!-- Set property to prevent target from being executed multiple times -->
+    <property name="project.installed" value="true"/>
+  </target>
+
+  <!-- ### Download and enable a project/module -->
+  <target name="enable-module"
+          depends="setup-phing-drush">
+    <!-- If project is not set then we assume that the module name is also
+         the project name. -->
+    <property name="project" value="${module}" override="no"/>
+
+    <!-- If the module is not already available then download it -->
+    <drush command="pm-list" returnProperty="modules.available"/>
+    <php function="strpos" returnProperty="module.available">
+      <param>${modules.available}</param>
+      <param>${module}</param>
+    </php>
+    <if>
+      <not><istrue value="${module.available}"/></not>
+      <then>
+        <!-- Download specific version if specified -->
+        <condition property="download" value="${project}-${project.version}">
+          <isset property="project.version"/>
+        </condition>
+        <property name="download" value="${project}" override="false"/>
+
+        <drush command="pm-download" assume="yes">
+          <param>${download}</param>
+        </drush>
+      </then>
+    </if>
+
+    <!-- Enable the module -->
+    <drush command="pm-enable" assume="yes">
+      <param>${module}</param>
+    </drush>
+  </target>
+
+  <!-- ### Clone a git repository -->
+  <target name="setup-git-repo">
+    <!-- Only clone if repository does not exist already -->
+    <if>
+      <not><available file="${repo.dir}" /></not>
+      <then>
+        <!-- Set revision to HEAD if not already defined -->
+        <property name="repo.revision" value="HEAD" override="false"/>
+
+        <echo>Cloning ${repo.url} ${repo.revision} into ${repo.dir}</echo>
+        <!-- The [`gitclone` task](http://www.phing.info/docs/guide/stable/chapters/appendixes/AppendixC-OptionalTasks.html#GitCloneTask)
+             does not seem to work. Use exec instead. -->
+        <exec command="git clone ${repo.url} ${repo.dir}" />
+        <exec command="git checkout ${repo.revision}" dir="${repo.dir}"/>
+      </then>
+    </if>
+  </target>
+
+  <!-- ### Download and apply a patch -->
+  <target name="apply-http-patch">
+    <php function="basename" returnProperty="patch.file">
+      <param>${patch.url}</param>
+    </php>
+
+    <!-- If patch has already been downloaded then we assume it has also been
+         applied -->
+    <if>
+      <not><available file="${project.toolsdir}/${patch.file}"/></not>
+      <then>
+        <httpget url="${patch.url}"
+                 dir="${project.toolsdir}"
+                 proxy="${phing.httpget.proxy}" />
+        <patch patchfile="${project.toolsdir}/${patch.file}"
+               dir="${patch.dir}" haltonfailure="true"/>
+      </then>
+    </if>
+  </target>
+
+  <!-- ### Setup Phing Drush integration -->
+  <target name="setup-phing-drush"
+          depends="setup-dirs" >
+    <!-- Clone the project -->
+    <phingcall target="setup-git-repo">
+      <property name="repo.dir"
+                value="${project.toolsdir}/phing-drush"/>
+      <property name="repo.url"
+                value="${phing.drush.repository.url}" />
+      <property name="repo.revision"
+                value="${phing.drush.repository.revision}" />
+    </phingcall>
+
+    <!-- Register as custom Phing task -->
+    <taskdef name="drush" classname="DrushTask"
+             classpath="${project.toolsdir}/phing-drush" />
+
+    <!-- Run drush from the project Drupal directory -->
+    <property name="drush.root" value="${project.drupal.dir}"/>
+  </target>
